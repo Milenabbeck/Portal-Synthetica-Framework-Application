@@ -28,11 +28,12 @@ with Session(engine) as db:
 
 app = FastAPI(title="Synthetica API", version="1.0.0")
 
-# Em dev libera o Vite (5173); em produção, defina CORS_ORIGINS com a lista
-# real separada por vírgula. "*" com Authorization é aceitável só localmente.
+# Em dev libera o Vite (5173); em produção, já libera o domínio do Vercel
+# como padrão. Dá pra sobrescrever com a variável CORS_ORIGINS se precisar.
 _origens = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174",
+    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,"
+    "https://portal-synthetica-framework-applica.vercel.app",
 ).split(",")
 
 app.add_middleware(
