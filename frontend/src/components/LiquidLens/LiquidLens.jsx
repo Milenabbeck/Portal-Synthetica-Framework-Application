@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./LiquidLens.module.css";
 
 // tentei fazer isso só com SVG + backdrop-filter, mas no Safari não desloca
@@ -148,8 +148,24 @@ function criarBlob(indice, total, vw, vh) {
   };
 }
 
-export default function LiquidLens() {
+export default function LiquidLens({ limiteRef }) {
   const canvasRef = useRef(null);
+  // sem limiteRef, o efeito ficaria visível na página inteira ao rolar —
+  // com ele, o canvas some (opacidade) assim que a área indicada (o hero)
+  // sai da tela, em vez de continuar flutuando sobre o resto do conteúdo.
+  const [dentroDoLimite, setDentroDoLimite] = useState(true);
+
+  useEffect(() => {
+    const alvo = limiteRef?.current;
+    if (!alvo) return undefined;
+    // IntersectionObserver em vez de listener de scroll: não depende de
+    // nenhum evento disparar, o navegador calcula a visibilidade sozinho.
+    const observer = new IntersectionObserver(([entrada]) => setDentroDoLimite(entrada.isIntersecting), {
+      rootMargin: "0px 0px -10% 0px",
+    });
+    observer.observe(alvo);
+    return () => observer.disconnect();
+  }, [limiteRef]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -310,5 +326,12 @@ export default function LiquidLens() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} className={styles.camada} aria-hidden="true" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      className={styles.camada}
+      style={{ opacity: dentroDoLimite ? 1 : 0 }}
+      aria-hidden="true"
+    />
+  );
 }

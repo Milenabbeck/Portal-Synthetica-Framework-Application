@@ -19,7 +19,7 @@ export default function Capa() {
 
   useEffect(() => {
     listarConteudos({ status: "publicado" })
-      .then((itens) =>
+      .then(({ itens }) =>
         setMaterias([...itens].sort((a, b) => (a.pagina ?? 999) - (b.pagina ?? 999)))
       )
       .catch(() => setMaterias([]));

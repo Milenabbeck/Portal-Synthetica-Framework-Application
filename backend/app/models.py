@@ -90,6 +90,7 @@ class Conteudo(Base):
     pagina = Column(Integer, nullable=True)
     tempo_leitura_min = Column(Integer, nullable=False, default=5)
     palavra_chave = Column(String(120), nullable=False, default="")
+    imagem_url = Column(String(500), nullable=True)
     status = Column(
         Enum(StatusConteudo), nullable=False, default=StatusConteudo.RASCUNHO
     )

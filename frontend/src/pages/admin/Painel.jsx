@@ -1,30 +1,28 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { listarCartas, listarConteudos } from "../../api/client";
+import { listarCartas, listarConteudos, obterEstatisticas } from "../../api/client";
 import glass from "../../styles/glass.module.css";
 import styles from "./Painel.module.css";
-
-const ATIVIDADE = [
-  { quando: "HÁ 12 MIN", quem: "JÚLIA", texto: 'publicou "Réplicas e replicantes"' },
-  { quando: "HÁ 1 H", quem: "EDITOR-CHEFE IA", texto: "fechou 38 edições do dia" },
-  { quando: "HÁ 3 H", quem: "MARCO", texto: "recusou uma carta do assinante #0291" },
-  { quando: "ONTEM", quem: "NÁDIA", texto: 'criou o rascunho "O trabalho que virou fila"' },
-];
 
 export default function Painel() {
   const [conteudos, setConteudos] = useState([]);
   const [conteudosErro, setConteudosErro] = useState(false);
   // undefined = carregando · null = falhou · número = ok
   const [cartasPendentes, setCartasPendentes] = useState(undefined);
+  const [estatisticas, setEstatisticas] = useState(undefined);
+  const [estatisticasErro, setEstatisticasErro] = useState(false);
 
   useEffect(() => {
     let ativo = true;
     listarConteudos()
-      .then((c) => ativo && setConteudos(c))
+      .then(({ itens }) => ativo && setConteudos(itens))
       .catch(() => ativo && setConteudosErro(true));
     listarCartas({ status: "pendente" })
       .then((cs) => ativo && setCartasPendentes(cs.length))
       .catch(() => ativo && setCartasPendentes(null));
+    obterEstatisticas()
+      .then((dados) => ativo && setEstatisticas(dados))
+      .catch(() => ativo && setEstatisticasErro(true));
     return () => {
       ativo = false;
     };
@@ -107,15 +105,52 @@ export default function Painel() {
 
         <div className={`${glass.vidro} ${styles.atividade}`}>
           <div className={glass.vidroConteudo}>
-            <p className={`mono ${styles.rotulo}`}>ATIVIDADE RECENTE</p>
-            {ATIVIDADE.map((evento, i) => (
-              <div key={i} className={styles.evento}>
-                <p className={`mono ${styles.eventoQuando}`}>
-                  {evento.quando} · {evento.quem}
-                </p>
-                <p className={styles.eventoTexto}>{evento.texto}</p>
-              </div>
-            ))}
+            {estatisticasErro && (
+              <p className={`mono ${styles.rotulo}`}>Não foi possível carregar as estatísticas.</p>
+            )}
+
+            {estatisticas === undefined && !estatisticasErro && (
+              <p className={`mono ${styles.rotulo}`}>Carregando estatísticas…</p>
+            )}
+
+            {estatisticas && (
+              <>
+                <p className={`mono ${styles.rotulo}`}>PUBLICADAS POR EDITORIA</p>
+                {estatisticas.conteudos_por_editoria.length === 0 && (
+                  <p className={styles.eventoTexto}>Nenhuma matéria publicada ainda.</p>
+                )}
+                {estatisticas.conteudos_por_editoria.map((e) => (
+                  <div key={e.editoria} className={styles.evento}>
+                    <p className={`mono ${styles.eventoQuando}`}>{e.editoria.toUpperCase()}</p>
+                    <p className={styles.eventoTexto}>{e.total} matéria(s)</p>
+                  </div>
+                ))}
+
+                <p className={`mono ${styles.rotulo}`}>MAIS COMENTADAS</p>
+                {estatisticas.mais_comentados.every((c) => c.total_comentarios === 0) && (
+                  <p className={styles.eventoTexto}>Nenhum comentário ainda.</p>
+                )}
+                {estatisticas.mais_comentados
+                  .filter((c) => c.total_comentarios > 0)
+                  .map((c) => (
+                    <div key={c.id} className={styles.evento}>
+                      <p className={`mono ${styles.eventoQuando}`}>{c.total_comentarios} COMENTÁRIO(S)</p>
+                      <p className={styles.eventoTexto}>{c.titulo}</p>
+                    </div>
+                  ))}
+
+                <p className={`mono ${styles.rotulo}`}>LEITORES MAIS ATIVOS</p>
+                {estatisticas.usuarios_mais_ativos.length === 0 && (
+                  <p className={styles.eventoTexto}>Ninguém comentou ainda.</p>
+                )}
+                {estatisticas.usuarios_mais_ativos.map((u) => (
+                  <div key={u.id} className={styles.evento}>
+                    <p className={`mono ${styles.eventoQuando}`}>{u.total_comentarios} COMENTÁRIO(S)</p>
+                    <p className={styles.eventoTexto}>{u.nome}</p>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </div>
       </div>

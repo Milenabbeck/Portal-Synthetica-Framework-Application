@@ -1,17 +1,16 @@
 import os
-from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
-from . import auth, models, schemas
-from .database import Base, engine, get_db
+from .database import Base, engine
 from .migracoes import aplicar_migracoes
+from .routers import autenticacao, cartas, comentarios, conteudos, estatisticas, favoritos
 from .seed import (
     seed_cartas_se_vazio,
     seed_corpo_rico_se_vazio,
+    seed_imagens_se_vazio,
     seed_se_vazio,
     seed_senha_redacao_se_vazio,
 )
@@ -24,6 +23,7 @@ with Session(engine) as db:
     seed_se_vazio(db)
     seed_senha_redacao_se_vazio(db)
     seed_corpo_rico_se_vazio(db)
+    seed_imagens_se_vazio(db)
     seed_cartas_se_vazio(db)
 
 app = FastAPI(title="Synthetica API", version="1.0.0")
@@ -43,298 +43,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# conta na hora em vez de guardar no Conteudo, senão desatualiza a cada
-# comentário/favorito novo.
-def _com_contagens(db: Session, conteudo: models.Conteudo) -> models.Conteudo:
-    conteudo.total_comentarios = (
-        db.query(func.count(models.Comentario.id))
-        .filter(models.Comentario.conteudo_id == conteudo.id)
-        .scalar()
-    )
-    conteudo.total_favoritos = (
-        db.query(func.count(models.Favorito.id))
-        .filter(models.Favorito.conteudo_id == conteudo.id)
-        .scalar()
-    )
-    return conteudo
+# cada disciplina/área ganhou seu próprio módulo de rotas em routers/,
+# em vez de tudo empilhado num arquivo só — dá pra mexer num sem esbarrar
+# nos outros.
+app.include_router(autenticacao.router)
+app.include_router(conteudos.router)
+app.include_router(cartas.router)
+app.include_router(favoritos.router)
+app.include_router(comentarios.router)
+app.include_router(estatisticas.router)
 
 
 @app.get("/")
 def raiz():
     # só pra confirmar que a API está de pé (usado em teste manual / uptime).
     return {"servico": "Synthetica API", "status": "ok"}
-
-
-# token opaco salvo na própria tabela de usuários, sem JWT.
-def _usuario_autenticado(
-    authorization: Optional[str] = Header(None), db: Session = Depends(get_db)
-) -> models.Usuario:
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Não autenticado")
-    token = authorization.split(" ", 1)[1].strip()
-    usuario = db.query(models.Usuario).filter(models.Usuario.token == token).first()
-    if not usuario:
-        raise HTTPException(status_code=401, detail="Sessão inválida")
-    return usuario
-
-
-def _exige_editor(usuario: models.Usuario = Depends(_usuario_autenticado)) -> models.Usuario:
-    """Autorização de verdade (não é esconder botão no front): CRUD de
-    conteúdo e moderação de carta só com token de conta `editor`."""
-    if usuario.papel != "editor":
-        raise HTTPException(status_code=403, detail="Acesso restrito à equipe editorial")
-    return usuario
-
-
-@app.post("/auth/cadastro", response_model=schemas.SessaoOut, status_code=201)
-def cadastrar(dados: schemas.CadastroIn, db: Session = Depends(get_db)):
-    # já devolve token pra logar automático (cai direto na Ficha do assinante).
-    if db.query(models.Usuario).filter(models.Usuario.email == dados.email).first():
-        raise HTTPException(status_code=409, detail="Já existe uma conta com esse e-mail")
-    if len(dados.senha) < 8:
-        raise HTTPException(status_code=400, detail="A senha precisa ter pelo menos 8 caracteres")
-
-    prefs = dados.preferencias
-    nome = dados.nome.strip() if dados.nome and dados.nome.strip() else dados.email.split("@")[0].upper()
-    usuario = models.Usuario(
-        nome=nome,
-        email=dados.email,
-        papel="assinante",
-        senha_hash=auth.gerar_hash_senha(dados.senha),
-        token=auth.gerar_token(),
-        proporcao_avancos=prefs.proporcao_avancos if prefs else None,
-        temas=",".join(prefs.temas) if prefs and prefs.temas else None,
-        perfil=prefs.perfil if prefs else None,
-        tempo=prefs.tempo if prefs else None,
-    )
-    db.add(usuario)
-    db.commit()
-    db.refresh(usuario)
-    return schemas.SessaoOut(token=usuario.token, assinante=usuario)
-
-
-@app.post("/auth/login", response_model=schemas.SessaoOut)
-def entrar(dados: schemas.LoginIn, db: Session = Depends(get_db)):
-    usuario = db.query(models.Usuario).filter(models.Usuario.email == dados.email).first()
-    if not usuario or not usuario.senha_hash or not auth.verificar_senha(dados.senha, usuario.senha_hash):
-        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
-    # gera um token novo a cada login, assim um token antigo vazado para de
-    # funcionar depois que o dono loga de novo.
-    usuario.token = auth.gerar_token()
-    db.commit()
-    db.refresh(usuario)
-    return schemas.SessaoOut(token=usuario.token, assinante=usuario)
-
-
-@app.get("/auth/eu", response_model=schemas.AssinanteOut)
-def eu(usuario: models.Usuario = Depends(_usuario_autenticado)):
-    # usado pelo SessaoContext do front pra saber quem está logado (ou se
-    # ninguém está) assim que qualquer tela do leitor carrega.
-    return usuario
-
-
-@app.patch("/auth/preferencias", response_model=schemas.AssinanteOut)
-def atualizar_preferencias(
-    dados: schemas.PreferenciasOnboarding,
-    usuario: models.Usuario = Depends(_usuario_autenticado),
-    db: Session = Depends(get_db),
-):
-    # cada campo só é alterado se vier preenchido — permite a Ficha de
-    # Assinatura mandar só o que o usuário respondeu naquele passo do wizard.
-    if dados.proporcao_avancos is not None:
-        usuario.proporcao_avancos = dados.proporcao_avancos
-    if dados.temas is not None:
-        usuario.temas = ",".join(dados.temas)
-    if dados.perfil is not None:
-        usuario.perfil = dados.perfil
-    if dados.tempo is not None:
-        usuario.tempo = dados.tempo
-    db.commit()
-    db.refresh(usuario)
-    return usuario
-
-
-@app.delete("/auth/preferencias/{campo}", response_model=schemas.AssinanteOut)
-def apagar_sinal(
-    campo: str,
-    usuario: models.Usuario = Depends(_usuario_autenticado),
-    db: Session = Depends(get_db),
-):
-    # a Ficha do assinante deixa apagar cada "sinal" usado na curadoria
-    # individualmente — aqui é só zerar o campo específico, não a conta toda.
-    campos_validos = {"proporcao_avancos", "temas", "perfil", "tempo"}
-    if campo not in campos_validos:
-        raise HTTPException(status_code=400, detail="Sinal desconhecido")
-    setattr(usuario, campo, None)
-    db.commit()
-    db.refresh(usuario)
-    return usuario
-
-
-@app.get("/categorias", response_model=list[schemas.CategoriaOut])
-def listar_categorias(db: Session = Depends(get_db)):
-    return db.query(models.Categoria).all()
-
-
-@app.get("/editorias", response_model=list[schemas.EditoriaOut])
-def listar_editorias(db: Session = Depends(get_db)):
-    return db.query(models.Editoria).all()
-
-
-# --- CRUD de Conteúdo (a entrega da disciplina) ---
-
-
-@app.get("/conteudos", response_model=list[schemas.ConteudoOut])
-def listar_conteudos(
-    db: Session = Depends(get_db),
-    busca: Optional[str] = Query(None, description="Filtra por título"),
-    editoria: Optional[str] = Query(None, description="AVANÇOS, CULTURA, ÉTICA, MEMÓRIA"),
-    status_: Optional[models.StatusConteudo] = Query(None, alias="status"),
-):
-    # READ: sem nenhum filtro passado, devolve tudo (usado pelo painel);
-    # com "status=publicado", devolve só o que o leitor pode ver.
-    query = db.query(models.Conteudo)
-    if busca:
-        query = query.filter(models.Conteudo.titulo.ilike(f"%{busca}%"))
-    if editoria:
-        query = query.join(models.Editoria).filter(
-            func.lower(models.Editoria.nome) == editoria.lower()
-        )
-    if status_:
-        query = query.filter(models.Conteudo.status == status_)
-    itens = query.order_by(models.Conteudo.atualizado_em.desc()).all()
-    return [_com_contagens(db, c) for c in itens]
-
-
-@app.get("/conteudos/{conteudo_id}", response_model=schemas.ConteudoOut)
-def obter_conteudo(conteudo_id: int, db: Session = Depends(get_db)):
-    # READ de um item só — é essa rota que a tela de Leitura chama pra abrir
-    # a matéria pelo id que veio na URL (/leitura/:id).
-    conteudo = db.get(models.Conteudo, conteudo_id)
-    if not conteudo:
-        raise HTTPException(status_code=404, detail="Conteúdo não encontrado")
-    return _com_contagens(db, conteudo)
-
-
-@app.post("/conteudos", response_model=schemas.ConteudoOut, status_code=201)
-def criar_conteudo(
-    dados: schemas.ConteudoCreate,
-    db: Session = Depends(get_db),
-    editor: models.Usuario = Depends(_exige_editor),
-):
-    # CREATE: exige token de editor (ver _exige_editor) e valida a editoria
-    # antes de gravar, senão o FK ficaria apontando pra um id inexistente.
-    editoria = db.get(models.Editoria, dados.editoria_id)
-    if not editoria:
-        raise HTTPException(status_code=400, detail="Editoria inválida")
-
-    autor_id = dados.autor_id
-    if autor_id is not None and not db.get(models.Usuario, autor_id):
-        raise HTTPException(status_code=400, detail="Autor inválido")
-    if not autor_id:
-        # sem autor explícito: assina com a conta do editor logado.
-        autor_id = editor.id
-
-    conteudo = models.Conteudo(
-        titulo=dados.titulo,
-        chamada=dados.chamada,
-        corpo=dados.corpo,
-        editoria_id=dados.editoria_id,
-        pagina=dados.pagina,
-        tempo_leitura_min=dados.tempo_leitura_min,
-        palavra_chave=dados.palavra_chave,
-        status=dados.status,
-        autor_id=autor_id,
-    )
-    db.add(conteudo)
-    db.commit()
-    db.refresh(conteudo)
-    return _com_contagens(db, conteudo)
-
-
-@app.put("/conteudos/{conteudo_id}", response_model=schemas.ConteudoOut)
-@app.patch("/conteudos/{conteudo_id}", response_model=schemas.ConteudoOut)
-def atualizar_conteudo(
-    conteudo_id: int,
-    dados: schemas.ConteudoUpdate,
-    db: Session = Depends(get_db),
-    editor: models.Usuario = Depends(_exige_editor),
-):
-    # PUT e PATCH caem na mesma função — com exclude_unset os dois se
-    # comportam como PATCH (só muda o que veio no corpo).
-    conteudo = db.get(models.Conteudo, conteudo_id)
-    if not conteudo:
-        raise HTTPException(status_code=404, detail="Conteúdo não encontrado")
-
-    campos = dados.model_dump(exclude_unset=True)
-
-    if campos.get("editoria_id") is not None and not db.get(models.Editoria, campos["editoria_id"]):
-        raise HTTPException(status_code=400, detail="Editoria inválida")
-    if campos.get("autor_id") is not None and not db.get(models.Usuario, campos["autor_id"]):
-        raise HTTPException(status_code=400, detail="Autor inválido")
-
-    for campo, valor in campos.items():
-        setattr(conteudo, campo, valor)
-
-    db.commit()
-    db.refresh(conteudo)
-    return _com_contagens(db, conteudo)
-
-
-@app.delete("/conteudos/{conteudo_id}", status_code=204)
-def excluir_conteudo(
-    conteudo_id: int,
-    db: Session = Depends(get_db),
-    editor: models.Usuario = Depends(_exige_editor),
-):
-    # DELETE — 204 sem corpo, como o front (ConfirmarExclusaoModal) espera.
-    conteudo = db.get(models.Conteudo, conteudo_id)
-    if not conteudo:
-        raise HTTPException(status_code=404, detail="Conteúdo não encontrado")
-    # Cartas apontam pro conteúdo por FK nullable — solta a referência antes
-    # de apagar pra não deixar carta órfã (SQLite não força FK aqui).
-    db.query(models.Carta).filter(models.Carta.conteudo_id == conteudo_id).update(
-        {models.Carta.conteudo_id: None}
-    )
-    db.delete(conteudo)
-    db.commit()
-    return None
-
-
-# --- Cartas à redação (moderação, fora do CRUD principal) ----------------
-
-
-@app.get("/cartas", response_model=list[schemas.CartaOut])
-def listar_cartas(
-    db: Session = Depends(get_db),
-    status_: Optional[models.StatusCarta] = Query(None, alias="status"),
-    busca: Optional[str] = Query(None, description="Busca por assinante ou trecho da carta"),
-):
-    query = db.query(models.Carta)
-    if status_:
-        query = query.filter(models.Carta.status == status_)
-    if busca:
-        termo = f"%{busca}%"
-        query = query.filter(
-            (models.Carta.assinante_nome.ilike(termo)) | (models.Carta.texto.ilike(termo))
-        )
-    return query.order_by(models.Carta.criado_em.desc()).all()
-
-
-@app.patch("/cartas/{carta_id}", response_model=schemas.CartaOut)
-def atualizar_carta(
-    carta_id: int,
-    dados: schemas.CartaUpdate,
-    db: Session = Depends(get_db),
-    editor: models.Usuario = Depends(_exige_editor),
-):
-    # a redação não edita o texto da carta, só decide o status
-    # (pendente -> aprovada/recusada) — é isso que a tela de moderação faz.
-    carta = db.get(models.Carta, carta_id)
-    if not carta:
-        raise HTTPException(status_code=404, detail="Carta não encontrada")
-    carta.status = dados.status
-    db.commit()
-    db.refresh(carta)
-    return carta

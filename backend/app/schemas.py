@@ -37,6 +37,7 @@ class ConteudoBase(BaseModel):
     pagina: Optional[int] = Field(default=None, ge=1)
     tempo_leitura_min: int = Field(default=5, ge=1)
     palavra_chave: str = ""
+    imagem_url: Optional[str] = None
     status: StatusConteudo = StatusConteudo.RASCUNHO
 
 
@@ -53,6 +54,7 @@ class ConteudoUpdate(BaseModel):
     pagina: Optional[int] = Field(default=None, ge=1)
     tempo_leitura_min: Optional[int] = Field(default=None, ge=1)
     palavra_chave: Optional[str] = None
+    imagem_url: Optional[str] = None
     status: Optional[StatusConteudo] = None
 
 
@@ -66,6 +68,70 @@ class ConteudoOut(ConteudoBase):
     autor: UsuarioOut
     total_comentarios: int = 0
     total_favoritos: int = 0
+
+
+class ConteudoListaOut(BaseModel):
+    itens: list[ConteudoOut]
+    total: int
+    pagina: int
+    por_pagina: int
+    total_paginas: int
+
+
+# --- Favoritos --------------------------------------------------------------
+
+
+class FavoritoCreate(BaseModel):
+    conteudo_id: int
+
+
+class FavoritoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    conteudo_id: int
+    criado_em: datetime
+
+
+# --- Comentários --------------------------------------------------------------
+
+
+class ComentarioCreate(BaseModel):
+    texto: str = Field(min_length=1)
+
+
+class ComentarioOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    conteudo_id: int
+    texto: str
+    criado_em: datetime
+    usuario: UsuarioOut
+
+
+# --- Estatísticas (painel da redação) ---------------------------------------
+
+
+class EstatisticaEditoria(BaseModel):
+    editoria: str
+    total: int
+
+
+class EstatisticaConteudo(BaseModel):
+    id: int
+    titulo: str
+    total_comentarios: int
+
+
+class EstatisticaUsuario(BaseModel):
+    id: int
+    nome: str
+    total_comentarios: int
+
+
+class EstatisticasOut(BaseModel):
+    conteudos_por_editoria: list[EstatisticaEditoria]
+    mais_comentados: list[EstatisticaConteudo]
+    usuarios_mais_ativos: list[EstatisticaUsuario]
 
 
 # --- Cartas à redação -----------------------------------------------------

@@ -27,6 +27,7 @@ def _conteudos_exemplo(ed_por_nome):
             pagina=8,
             tempo_leitura_min=6,
             palavra_chave="reconhecimento facial",
+            imagem_url="https://images.unsplash.com/photo-1518770660439-4636190af475?w=900&h=600&fit=crop&q=70",
             status=models.StatusConteudo.PUBLICADO,
         ),
         dict(
@@ -52,6 +53,7 @@ def _conteudos_exemplo(ed_por_nome):
             pagina=16,
             tempo_leitura_min=9,
             palavra_chave="ficção científica",
+            imagem_url="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=900&h=600&fit=crop&q=70",
             status=models.StatusConteudo.PUBLICADO,
         ),
         dict(
@@ -72,6 +74,7 @@ def _conteudos_exemplo(ed_por_nome):
             pagina=18,
             tempo_leitura_min=7,
             palavra_chave="autoria algorítmica",
+            imagem_url="https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=900&h=600&fit=crop&q=70",
             status=models.StatusConteudo.PUBLICADO,
         ),
         dict(
@@ -88,6 +91,7 @@ def _conteudos_exemplo(ed_por_nome):
             pagina=24,
             tempo_leitura_min=8,
             palavra_chave="trabalho plataformizado",
+            imagem_url="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=900&h=600&fit=crop&q=70",
             status=models.StatusConteudo.RASCUNHO,
         ),
         dict(
@@ -105,6 +109,7 @@ def _conteudos_exemplo(ed_por_nome):
             pagina=31,
             tempo_leitura_min=10,
             palavra_chave="replicantes",
+            imagem_url="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=900&h=600&fit=crop&q=70",
             status=models.StatusConteudo.PUBLICADO,
         ),
         dict(
@@ -119,6 +124,7 @@ def _conteudos_exemplo(ed_por_nome):
             pagina=None,
             tempo_leitura_min=5,
             palavra_chave="memória urbana",
+            imagem_url="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=900&h=600&fit=crop&q=70",
             status=models.StatusConteudo.RASCUNHO,
         ),
     ]
@@ -162,6 +168,7 @@ def seed_se_vazio(db: Session):
                 pagina=c["pagina"],
                 tempo_leitura_min=c["tempo_leitura_min"],
                 palavra_chave=c["palavra_chave"],
+                imagem_url=c["imagem_url"],
                 status=c["status"],
                 autor_id=redacao.id,
             )
@@ -191,6 +198,29 @@ def seed_corpo_rico_se_vazio(db: Session):
             alterou = True
     if alterou:
         db.commit()
+
+
+def seed_imagens_se_vazio(db: Session):
+    """Bancos já existentes têm as matérias de exemplo sem imagem de capa
+    (campo criado depois). Preenche casando por título, sem mexer em
+    conteúdo criado por vocês depois do seed."""
+    editorias = db.query(models.Editoria).all()
+    if not editorias:
+        return
+    ed_por_nome = {e.nome: e for e in editorias}
+
+    imagem_por_titulo = {c["titulo"]: c["imagem_url"] for c in _conteudos_exemplo(ed_por_nome)}
+
+    conteudos = (
+        db.query(models.Conteudo)
+        .filter(models.Conteudo.titulo.in_(imagem_por_titulo), models.Conteudo.imagem_url.is_(None))
+        .all()
+    )
+    if not conteudos:
+        return
+    for conteudo in conteudos:
+        conteudo.imagem_url = imagem_por_titulo[conteudo.titulo]
+    db.commit()
 
 
 def seed_senha_redacao_se_vazio(db: Session):

@@ -217,12 +217,18 @@
   overflow: hidden;
 }
 
+/* estático de propósito — sem animação contínua numa tela de navegação. */
 .heroGradiente {
   height: 100%;
   min-height: 220px;
-  background: linear-gradient(120deg, #ffe99e, #8178ff, #ff009c, #ffe99e);
-  background-size: 300% 300%;
-  animation: fluir 12s ease infinite;
+  background: linear-gradient(120deg, #ffe99e, #8178ff, #ff009c);
+}
+
+.heroMedia img {
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  object-fit: cover;
 }
 
 .heroFig {
@@ -232,12 +238,6 @@
   font-size: 8px;
   letter-spacing: 0.8px;
   color: rgba(255, 255, 255, 0.85);
-}
-
-@keyframes fluir {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }
 
 /* Lista do sumário */
@@ -394,8 +394,3 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .heroGradiente {
-    animation: none;
-  }
-}

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import glass from "../styles/glass.module.css";
 import { listarConteudos } from "../api/client";
 import objetoCromado from "../assets/login/objeto-cromado.png";
+import ImagemConteudo from "../components/ImagemConteudo";
 import LiquidLens from "../components/LiquidLens/LiquidLens";
 import GlitchText from "../components/glitch/GlitchText";
 import GlitchWordmark from "../components/glitch/GlitchWordmark";
@@ -21,6 +22,7 @@ import styles from "./HomeComercial.module.css";
 
 export default function HomeComercial() {
   const navigate = useNavigate();
+  const heroRef = useRef(null);
   const [destaques, setDestaques] = useState([]);
   const [emailNewsletter, setEmailNewsletter] = useState("");
   const [newsletterEnviada, setNewsletterEnviada] = useState(false);
@@ -30,7 +32,7 @@ export default function HomeComercial() {
     // batem com o que /leitura/:id abre.
     let ativo = true;
     listarConteudos({ status: "publicado" })
-      .then((itens) => ativo && setDestaques(itens.slice(0, 3)))
+      .then(({ itens }) => ativo && setDestaques(itens.slice(0, 3)))
       .catch(() => ativo && setDestaques([]));
     return () => {
       ativo = false;
@@ -48,7 +50,7 @@ export default function HomeComercial() {
     <div className={styles.pagina}>
       <div className={styles.halo} />
 
-      <LiquidLens />
+      <LiquidLens limiteRef={heroRef} />
 
       {/* NAV */}
       <div className={`${glass.vidro} ${glass.pilula} ${styles.nav}`}>
@@ -70,7 +72,7 @@ export default function HomeComercial() {
       </div>
 
       {/* HERO */}
-      <section className={styles.hero}>
+      <section ref={heroRef} className={styles.hero}>
         <p className={`mono ${styles.heroMeta}`}>
           <span>REVISTA DE INTELIGÊNCIA ARTIFICIAL</span>
           <GlitchText intensidade={0.7} intervaloMinMs={13000} intervaloMaxMs={28000}>
@@ -202,7 +204,7 @@ export default function HomeComercial() {
             >
               <div className={glass.vidroConteudo}>
                 <div className={styles.artigoFoto}>
-                  <span className="mono">FOTO</span>
+                  <ImagemConteudo url={c.imagem_url} alt={c.titulo} />
                 </div>
                 <p className={`mono ${styles.artigoEditoria}`}>{c.editoria.nome.toUpperCase()}</p>
                 <p className={styles.artigoTitulo}>{c.titulo}</p>

@@ -11,6 +11,11 @@ const STATUS_FILTRO = [
   { valor: "RASCUNHO", rotulo: "RASCUNHOS", api: "rascunho" },
   { valor: "PUBLICADO", rotulo: "PUBLICADOS", api: "publicado" },
 ];
+const ORDENACOES = [
+  { valor: "recentes", rotulo: "MAIS RECENTES" },
+  { valor: "mais_comentados", rotulo: "MAIS COMENTADOS" },
+  { valor: "titulo", rotulo: "TÍTULO (A-Z)" },
+];
 const POR_PAGINA = 25;
 
 function formatarData(iso) {
@@ -28,26 +33,35 @@ export default function ListaConteudos() {
   const [busca, setBusca] = useState("");
   const [editoriaAtiva, setEditoriaAtiva] = useState("TODAS");
   const [statusAtivo, setStatusAtivo] = useState("TODOS");
+  const [ordenacao, setOrdenacao] = useState("recentes");
   const [pagina, setPagina] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPaginas, setTotalPaginas] = useState(1);
   const [selecionados, setSelecionados] = useState(new Set());
   const [paraExcluir, setParaExcluir] = useState(null);
   const [processandoAcaoEmMassa, setProcessandoAcaoEmMassa] = useState(false);
   const [aviso, setAviso] = useState(null);
 
-  // READ do CRUD: busca/editoria/status viram query params pro GET /conteudos
-  // — o filtro de verdade acontece no backend, aqui só monta a chamada.
+  // READ do CRUD: busca/editoria/status/ordenar/página viram query params
+  // pro GET /conteudos — filtro, ordenação e paginação de verdade acontecem
+  // no backend, aqui só monta a chamada e guarda o que ele devolve.
   async function carregar() {
     setCarregando(true);
     setErro(null);
     try {
       const filtroEditoria = editoriaAtiva === "TODAS" ? undefined : editoriaAtiva;
       const filtroStatus = STATUS_FILTRO.find((s) => s.valor === statusAtivo)?.api;
-      const dados = await listarConteudos({
+      const resposta = await listarConteudos({
         busca: busca || undefined,
         editoria: filtroEditoria,
         status: filtroStatus,
+        ordenar: ordenacao,
+        pagina,
+        porPagina: POR_PAGINA,
       });
-      setConteudos(dados);
+      setConteudos(resposta.itens);
+      setTotal(resposta.total);
+      setTotalPaginas(resposta.total_paginas);
       setSelecionados(new Set());
     } catch (e) {
       setErro(e.message);
@@ -60,19 +74,16 @@ export default function ListaConteudos() {
     const debounce = setTimeout(carregar, 250);
     return () => clearTimeout(debounce);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busca, editoriaAtiva, statusAtivo]);
+  }, [busca, editoriaAtiva, statusAtivo, ordenacao, pagina]);
 
   useEffect(() => {
     setPagina(1);
-  }, [busca, editoriaAtiva, statusAtivo]);
+  }, [busca, editoriaAtiva, statusAtivo, ordenacao]);
 
   const totalRascunhos = useMemo(
     () => conteudos.filter((c) => c.status === "rascunho").length,
     [conteudos]
   );
-
-  const totalPaginas = Math.max(1, Math.ceil(conteudos.length / POR_PAGINA));
-  const pagosVisiveis = conteudos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
 
   function alternarSelecao(id) {
     setSelecionados((atual) => {
@@ -136,7 +147,7 @@ export default function ListaConteudos() {
         <div>
           <h1 className={styles.titulo}>Conteúdos</h1>
           <p className={`mono ${styles.subtitulo}`}>
-            {conteudos.length} matéria(s) no acervo · {totalRascunhos} rascunho(s)
+            {total} matéria(s) no acervo · {totalRascunhos} rascunho(s) nesta página
           </p>
         </div>
         <button className={`mono ${styles.botaoNovo}`} onClick={() => navigate("novo")}>
@@ -175,12 +186,21 @@ export default function ListaConteudos() {
 
       <div className={`mono ${styles.linhaResultado}`}>
         <p>
-          {conteudos.length} CONTEÚDOS · MOSTRANDO{" "}
-          {conteudos.length === 0 ? 0 : (pagina - 1) * POR_PAGINA + 1}–
-          {Math.min(pagina * POR_PAGINA, conteudos.length)} · FILTRO: {editoriaAtiva}
+          {total} CONTEÚDOS · MOSTRANDO{" "}
+          {total === 0 ? 0 : (pagina - 1) * POR_PAGINA + 1}–
+          {Math.min(pagina * POR_PAGINA, total)} · FILTRO: {editoriaAtiva}
           {statusAtivo !== "TODOS" ? ` · ${statusAtivo}` : ""}
         </p>
-        <p className={styles.ordenar}>ORDENAR: MAIS RECENTES ▾</p>
+        <label className={styles.ordenar}>
+          ORDENAR:{" "}
+          <select value={ordenacao} onChange={(e) => setOrdenacao(e.target.value)}>
+            {ORDENACOES.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.rotulo}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {erro && <p className={styles.mensagemErro}>{erro}</p>}
@@ -225,7 +245,7 @@ export default function ListaConteudos() {
             <p className={styles.mensagem}>Nenhum conteúdo encontrado.</p>
           )}
 
-          {pagosVisiveis.map((c) => (
+          {conteudos.map((c) => (
             <div key={c.id} className={styles.linha}>
               <span className={styles.colCheckbox}>
                 <input

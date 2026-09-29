@@ -17,6 +17,7 @@ const VAZIO = {
   pagina: "",
   tempo_leitura_min: 5,
   palavra_chave: "",
+  imagem_url: "",
   status: "rascunho",
 };
 
@@ -51,6 +52,7 @@ export default function FormularioConteudo() {
           pagina: c.pagina ?? "",
           tempo_leitura_min: c.tempo_leitura_min,
           palavra_chave: c.palavra_chave,
+          imagem_url: c.imagem_url ?? "",
           status: c.status,
         });
         setMeta(c);
@@ -150,6 +152,24 @@ export default function FormularioConteudo() {
           <Campo label="CHAMADA">
             <input value={form.chamada} onChange={(e) => atualizarCampo("chamada", e.target.value)} />
           </Campo>
+          <Campo label="URL DA IMAGEM DE CAPA">
+            <input
+              type="url"
+              placeholder="https://…"
+              value={form.imagem_url}
+              onChange={(e) => atualizarCampo("imagem_url", e.target.value)}
+            />
+          </Campo>
+          {form.imagem_url && (
+            <img
+              src={form.imagem_url}
+              alt=""
+              className={styles.previaImagem}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          )}
           <div>
             <p className={`mono ${styles.rotulo}`}>CORPO DA MATÉRIA</p>
             <div className={`${glass.vidro} ${styles.caixaVidro}`}>

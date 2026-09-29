@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import glass from "../styles/glass.module.css";
+import ImagemConteudo from "../components/ImagemConteudo";
 import { listarConteudos } from "../api/client";
 import { lerPreferencias } from "../onboarding/preferencias";
 import { useSessao } from "../contexto/SessaoContext";
@@ -17,7 +18,7 @@ export default function Sumario() {
   useEffect(() => {
     let ativo = true;
     listarConteudos({ status: "publicado" })
-      .then((itens) => {
+      .then(({ itens }) => {
         if (ativo) {
           setConteudos([...itens].sort((a, b) => (a.pagina ?? 999) - (b.pagina ?? 999)));
         }
@@ -81,7 +82,7 @@ export default function Sumario() {
                 <p className={`mono ${styles.itemPagina}`}>P. {String(c.pagina ?? "—").padStart(2, "0")}</p>
                 <p className={`mono ${styles.editoria}`}>{c.editoria.nome.toUpperCase()}</p>
                 <div className={styles.foto}>
-                  <span className="mono">FOTO</span>
+                  <ImagemConteudo url={c.imagem_url} alt={c.titulo} />
                 </div>
                 <div className={styles.textos}>
                   <p className={styles.itemTitulo}>{c.titulo}</p>

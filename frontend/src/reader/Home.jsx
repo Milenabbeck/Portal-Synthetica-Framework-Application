@@ -22,7 +22,7 @@ export default function Home() {
   useEffect(() => {
     let ativo = true;
     listarConteudos({ status: "publicado" })
-      .then((itens) => {
+      .then(({ itens }) => {
         if (ativo) {
           setConteudos([...itens].sort((a, b) => (a.pagina ?? 999) - (b.pagina ?? 999)));
         }
@@ -109,8 +109,14 @@ export default function Home() {
                 <span className={`mono ${styles.heroLer}`}>LER MATÉRIA →</span>
               </div>
               <div className={styles.heroMedia}>
-                <div className={styles.heroGradiente} />
-                <span className={`mono ${styles.heroFig}`}>Fig. 01 · estudo de forma</span>
+                {capa.imagem_url ? (
+                  <img src={capa.imagem_url} alt="" />
+                ) : (
+                  <>
+                    <div className={styles.heroGradiente} />
+                    <span className={`mono ${styles.heroFig}`}>Fig. 01 · estudo de forma</span>
+                  </>
+                )}
               </div>
             </div>
           </button>

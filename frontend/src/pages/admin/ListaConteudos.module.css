@@ -88,6 +88,15 @@
   font-weight: 700;
 }
 
+.ordenar select {
+  font: inherit;
+  color: inherit;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
 .mensagemErro {
   color: var(--admin-sinal-texto);
   font-size: 13px;

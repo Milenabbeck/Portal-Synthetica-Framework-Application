@@ -43,11 +43,17 @@ async function requisicao(caminho, opcoes = {}) {
 
 // --- CRUD de conteúdo (Create / Read / Update / Delete) --------------------
 
-export function listarConteudos({ busca, editoria, status } = {}) {
+// devolve { itens, total, pagina, por_pagina, total_paginas } — a paginação
+// acontece no servidor agora. por_pagina tem um padrão alto (ver backend)
+// pra quem só quer "tudo de uma vez" (Home, Leitor) não precisar mudar nada.
+export function listarConteudos({ busca, editoria, status, pagina, porPagina, ordenar } = {}) {
   const params = new URLSearchParams();
   if (busca) params.set("busca", busca);
   if (editoria) params.set("editoria", editoria);
   if (status) params.set("status", status);
+  if (pagina) params.set("pagina", pagina);
+  if (porPagina) params.set("por_pagina", porPagina);
+  if (ordenar) params.set("ordenar", ordenar);
   const query = params.toString();
   return requisicao(`/conteudos${query ? `?${query}` : ""}`);
 }
@@ -124,4 +130,46 @@ export function atualizarPreferenciasAssinante(token, dados) {
 
 export function apagarSinalAssinante(token, campo) {
   return requisicao(`/auth/preferencias/${campo}`, { method: "DELETE", token });
+}
+
+// --- Favoritos (conta do assinante — web e mobile usam as mesmas rotas) ---
+
+export function listarMeusFavoritos(token) {
+  return requisicao("/favoritos", { token });
+}
+
+export function favoritar(token, conteudoId) {
+  return requisicao("/favoritos", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ conteudo_id: conteudoId }),
+  });
+}
+
+export function desfavoritar(token, conteudoId) {
+  return requisicao(`/favoritos/${conteudoId}`, { method: "DELETE", token });
+}
+
+// --- Comentários -------------------------------------------------------------
+
+export function listarComentarios(conteudoId) {
+  return requisicao(`/conteudos/${conteudoId}/comentarios`);
+}
+
+export function comentar(token, conteudoId, texto) {
+  return requisicao(`/conteudos/${conteudoId}/comentarios`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ texto }),
+  });
+}
+
+export function apagarComentario(token, comentarioId) {
+  return requisicao(`/comentarios/${comentarioId}`, { method: "DELETE", token });
+}
+
+// --- Estatísticas (painel da redação) -----------------------------------
+
+export function obterEstatisticas() {
+  return requisicao("/estatisticas", { token: tokenAdmin() });
 }
