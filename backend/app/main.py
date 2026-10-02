@@ -39,6 +39,8 @@ _origens = os.getenv(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _origens if o.strip()],
+    # prévia web do Expo Snack: o app mobile roda de snack-runtime.eascdn.net
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*(snack\.expo\.(dev|io)|eascdn\.net)",
     allow_methods=["*"],
     allow_headers=["*"],
 )
