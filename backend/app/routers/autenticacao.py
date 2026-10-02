@@ -40,9 +40,11 @@ def entrar(dados: schemas.LoginIn, db: Session = Depends(get_db)):
     usuario = db.query(models.Usuario).filter(models.Usuario.email == dados.email).first()
     if not usuario or not usuario.senha_hash or not auth.verificar_senha(dados.senha, usuario.senha_hash):
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
-    # gera um token novo a cada login, assim um token antigo vazado para de
-    # funcionar depois que o dono loga de novo.
-    usuario.token = auth.gerar_token()
+    # o token é criado só no primeiro login e reaproveitado nos seguintes, assim
+    # o site e o app mobile podem estar logados na mesma conta ao mesmo tempo
+    # (antes, cada login novo derrubava a sessão do outro).
+    if not usuario.token:
+        usuario.token = auth.gerar_token()
     db.commit()
     db.refresh(usuario)
     return schemas.SessaoOut(token=usuario.token, assinante=usuario)
