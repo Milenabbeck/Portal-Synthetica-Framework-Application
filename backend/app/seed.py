@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from . import auth, models
 
 SENHA_PADRAO_REDACAO = "redacao2047"
+EMAIL_ASSINANTE_DEMO = "leitor@synthetica.app"
+SENHA_ASSINANTE_DEMO = "leitor2047"
 
 
 def _conteudos_exemplo(ed_por_nome):
@@ -235,6 +237,26 @@ def seed_senha_redacao_se_vazio(db: Session):
         return
     for editor in editores_sem_senha:
         editor.senha_hash = auth.gerar_hash_senha(SENHA_PADRAO_REDACAO)
+    db.commit()
+
+
+def seed_assinante_demo_se_vazio(db: Session):
+    """No plano gratuito do Render o disco zera a cada deploy ou reinício, e as
+    contas criadas à mão somem junto. Esta conta fixa garante que sempre dá pra
+    entrar no portal e no app (demonstração e avaliação)."""
+    existente = (
+        db.query(models.Usuario).filter(models.Usuario.email == EMAIL_ASSINANTE_DEMO).first()
+    )
+    if existente:
+        return
+    db.add(
+        models.Usuario(
+            nome="Leitor Demo",
+            email=EMAIL_ASSINANTE_DEMO,
+            papel="assinante",
+            senha_hash=auth.gerar_hash_senha(SENHA_ASSINANTE_DEMO),
+        )
+    )
     db.commit()
 
 

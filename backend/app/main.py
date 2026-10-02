@@ -8,6 +8,7 @@ from .database import Base, engine
 from .migracoes import aplicar_migracoes
 from .routers import autenticacao, cartas, comentarios, conteudos, estatisticas, favoritos
 from .seed import (
+    seed_assinante_demo_se_vazio,
     seed_cartas_se_vazio,
     seed_corpo_rico_se_vazio,
     seed_imagens_se_vazio,
@@ -22,6 +23,7 @@ aplicar_migracoes(engine)
 with Session(engine) as db:
     seed_se_vazio(db)
     seed_senha_redacao_se_vazio(db)
+    seed_assinante_demo_se_vazio(db)
     seed_corpo_rico_se_vazio(db)
     seed_imagens_se_vazio(db)
     seed_cartas_se_vazio(db)
